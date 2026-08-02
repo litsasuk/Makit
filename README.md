@@ -436,7 +436,7 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
 
 Cookie、Authorization 等请求头值不会显示在选项表、控制台命令或命令日志中。
 正式 `config.json`、本地维护脚本、`output/`、目标列表、Agent 内部文档和 `tools/`
-已由 `.gitignore` 排除，避免一键推送时意外上传。
+由维护者本机的 `.gitignore` 排除；该忽略文件本身也不上传。
 
 ## 项目结构
 
@@ -456,12 +456,13 @@ tools/                  本地第三方工具目录，不上传
 output/                 本地运行结果目录，不上传
 build/                  PyInstaller 中间文件，不上传
 release/                EXE 发布目录，不上传
+.gitignore              本机 Git 忽略规则，不上传
 ```
 
 ## 一键推送到 GitHub
 
 `push.cmd` 只保留在维护者本机，不属于公开仓库内容。它会在提交前自动从 Git 索引移除
-正式配置、维护脚本、第三方工具和运行输出，同时保留本地文件。
+`.gitignore`、正式配置、维护脚本、第三方工具和运行输出，同时保留本地文件。
 
 1. 在 GitHub 上创建一个空仓库，不要预先添加 README、License 或 `.gitignore`；
 2. 双击项目根目录下的 `push.cmd`；
