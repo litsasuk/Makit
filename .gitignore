@@ -2,6 +2,12 @@
 /AGENTS.md
 /PROJECT_CONTEXT.md
 
+# Machine-local configuration and maintenance scripts
+/config.json
+/push.cmd
+/build.cmd
+/build_support/
+
 # Third-party/local tools are intentionally not published
 /tools/
 

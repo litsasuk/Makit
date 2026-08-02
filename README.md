@@ -62,9 +62,11 @@ sqlmap、Shiro Attack、afrog、xray 和 Goby 等模块定义，但这些第三�
 ```powershell
 git clone <你的仓库地址>
 cd makit
+Copy-Item config.demo.json config.json
 ```
 
-根据本机环境修改 `config.json`，并准备外部工具。首先检查控制台和模块配置：
+正式 `config.json` 包含本机工具路径，不上传到仓库。克隆后先从公开 Demo 创建本地
+配置，再根据本机环境修改并准备外部工具。首先检查控制台和模块配置：
 
 ```powershell
 python -B main.py tools
@@ -124,6 +126,9 @@ GUI 工具通常不需要 `--target`。启动成功后，Makit 会立即结束�
 继续独立运行。
 
 ## 打包为 Windows EXE
+
+`build.cmd` 和 `build_support/` 是本地维护文件，不上传到仓库；以下流程适用于持有
+完整本地项目的维护者。
 
 源码版本和打包版本可以同时保留。打包前只需安装一次 PyInstaller：
 
@@ -430,8 +435,8 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
 - 工具自身生成的 HTML、JSON 或其他结果文件。
 
 Cookie、Authorization 等请求头值不会显示在选项表、控制台命令或命令日志中。
-`output/`、目标列表、Agent 内部文档和 `tools/` 已由 `.gitignore` 排除，避免一键推送
-时意外上传。
+正式 `config.json`、本地维护脚本、`output/`、目标列表、Agent 内部文档和 `tools/`
+已由 `.gitignore` 排除，避免一键推送时意外上传。
 
 ## 项目结构
 
@@ -442,11 +447,11 @@ console/                CLI、交互状态、表格和颜色
 tooling/                工具模型、配置校验、目标和参数处理
 execution/              EXE/Python/Java 解析、CLI/GUI 执行和会话
 workflow/               工作流配置与执行
-config.json             操作模式、工具和工作流配置
-config.demo.json        打包时发布为 config.json 的通用示例配置
-build.cmd               保留源码并生成 release 发布目录
-build_support/hooks/    避免本地 workflow 包触发同名第三方打包 hook
-push.cmd                初始化、提交并推送到 GitHub
+config.json             本机正式配置，不上传
+config.demo.json        公开的通用配置示例
+build.cmd               本地打包脚本，不上传
+build_support/hooks/    本地 PyInstaller hook，不上传
+push.cmd                本地一键推送脚本，不上传
 tools/                  本地第三方工具目录，不上传
 output/                 本地运行结果目录，不上传
 build/                  PyInstaller 中间文件，不上传
@@ -454,6 +459,9 @@ release/                EXE 发布目录，不上传
 ```
 
 ## 一键推送到 GitHub
+
+`push.cmd` 只保留在维护者本机，不属于公开仓库内容。它会在提交前自动从 Git 索引移除
+正式配置、维护脚本、第三方工具和运行输出，同时保留本地文件。
 
 1. 在 GitHub 上创建一个空仓库，不要预先添加 README、License 或 `.gitignore`；
 2. 双击项目根目录下的 `push.cmd`；
