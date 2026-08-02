@@ -13,6 +13,7 @@ from typing import Any
 
 
 MAX_ERROR_OUTPUT_BYTES = 8192
+INTERNAL_LAUNCH_FLAG = "--makit-internal-gui-launcher"
 
 
 def _captured_output(output: Any, encoding: str) -> str:

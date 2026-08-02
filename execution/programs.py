@@ -142,6 +142,9 @@ class ProgramResolver:
         path_python = self._resolve_program("python")
         if path_python is not None:
             return path_python
+        # 冻结后的 sys.executable 是 Makit.exe，而不是可执行 Python 解释器。
+        if getattr(sys, "frozen", False):
+            return None
         current = Path(sys.executable)
         return current.resolve() if current.is_file() else None
 

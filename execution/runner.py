@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 from ctypes import wintypes
 
-from execution.gui import launch_gui
+from execution.gui import INTERNAL_LAUNCH_FLAG, launch_gui
 from execution.programs import ProgramResolver, ResolvedProgram, ToolUnavailable
 from execution.sessions import RunResult, RunSession, create_session
 from configuration import load_config
@@ -153,9 +153,15 @@ class Runner:
         if run_as_admin:
             if os.name != "nt":
                 raise OSError("run_as_admin 仅支持 Windows")
-            helper = self.project_dir / "gui_launcher.py"
-            if not helper.is_file():
-                raise OSError(f"缺少 GUI 启动助手：{helper}")
+            launcher = Path(sys.executable).resolve()
+            launcher_parameters: tuple[str, ...]
+            if getattr(sys, "frozen", False):
+                launcher_parameters = (INTERNAL_LAUNCH_FLAG,)
+            else:
+                entry_script = self.project_dir / "main.py"
+                if not entry_script.is_file():
+                    raise OSError(f"缺少主程序入口：{entry_script}")
+                launcher_parameters = (str(entry_script), INTERNAL_LAUNCH_FLAG)
             descriptor, status_name = tempfile.mkstemp(
                 prefix="makit-gui-", suffix=".json"
             )
@@ -163,9 +169,9 @@ class Runner:
             status_file = Path(status_name)
             try:
                 _launch_elevated_windows(
-                    Path(sys.executable).resolve(),
+                    launcher,
                     (
-                        str(helper),
+                        *launcher_parameters,
                         str(status_file),
                         str(working_directory),
                         str(encoding),

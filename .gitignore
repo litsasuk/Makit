@@ -20,6 +20,11 @@ __pycache__/
 .coverage
 htmlcov/
 
+# Local PyInstaller build and release artifacts
+/build/
+/release/
+*.spec
+
 # Local Python environments and secrets
 .venv/
 venv/

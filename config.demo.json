@@ -1,0 +1,157 @@
+{
+  "output_dir": "output",
+  "console_modes": {
+    "cli": {
+      "name": "CLI Demo",
+      "description": "EXE、Python 和 Java 命令行工具配置示例"
+    },
+    "gui": {
+      "name": "GUI Demo",
+      "description": "EXE、Python 和 Java 图形工具配置示例"
+    },
+    "workflow": {
+      "name": "Workflow Demo",
+      "description": "多工具顺序执行配置示例"
+    }
+  },
+  "tools": {
+    "exe_cli_demo": {
+      "module": "exe_cli_demo",
+      "console_mode": "cli",
+      "description": "EXE 命令行工具示例",
+      "executable": "tools\\demo\\exe-cli\\tool.exe",
+      "encoding": "utf-8",
+      "interactive": true,
+      "header_args": ["--header", "{header}"],
+      "cookie_args": ["--cookie", "{cookie}"],
+      "modes": {
+        "check": {
+          "name": "基础检查",
+          "description": "演示单目标、列表、请求头和输出目录参数",
+          "default": true,
+          "args": [
+            "--url", "{target}",
+            "--output", "{output_dir}\\exe-result.json"
+          ],
+          "list_args": [
+            "--url-file", "{target_file}",
+            "--output", "{output_dir}\\exe-result.json"
+          ]
+        },
+        "host-audit": {
+          "name": "主机检查",
+          "description": "演示从 URL 提取主机名",
+          "args": ["--host", "{host}"]
+        }
+      }
+    },
+    "python_cli_demo": {
+      "module": "python_cli_demo",
+      "console_mode": "cli",
+      "description": "Python 命令行工具示例",
+      "script": "tools\\demo\\python-cli\\tool.py",
+      "python_executable": "python",
+      "encoding": "utf-8",
+      "interactive": true,
+      "preserve_color": true,
+      "modes": {
+        "scan": {
+          "name": "扫描",
+          "description": "演示 Python 脚本的目标参数",
+          "default": true,
+          "args": ["--target", "{target}"],
+          "list_args": ["--targets", "{target_file}"]
+        }
+      }
+    },
+    "java_cli_demo": {
+      "module": "java_cli_demo",
+      "console_mode": "cli",
+      "description": "Java JAR 命令行工具示例",
+      "jar": "tools\\demo\\java-cli\\tool.jar",
+      "java_executable": "java",
+      "encoding": "utf-8",
+      "interactive": true,
+      "modes": {
+        "audit": {
+          "name": "审计",
+          "description": "演示 Java JAR 的命令行参数",
+          "default": true,
+          "args": ["--url", "{target}", "--report", "{output_dir}\\java-report.html"],
+          "list_args": ["--list", "{target_file}", "--report", "{output_dir}\\java-report.html"]
+        }
+      }
+    },
+    "exe_gui_demo": {
+      "module": "exe_gui_demo",
+      "console_mode": "gui",
+      "description": "EXE 图形工具示例",
+      "executable": "tools\\demo\\exe-gui\\tool.exe",
+      "launch_only": true,
+      "run_as_admin": false,
+      "startup_timeout": 2,
+      "modes": {
+        "open": {
+          "name": "启动",
+          "description": "打开 EXE 图形界面",
+          "default": true,
+          "args": []
+        }
+      }
+    },
+    "python_gui_demo": {
+      "module": "python_gui_demo",
+      "console_mode": "gui",
+      "description": "Python 图形工具示例",
+      "script": "tools\\demo\\python-gui\\tool.py",
+      "python_executable": "python",
+      "launch_only": true,
+      "startup_timeout": 2,
+      "modes": {
+        "open": {
+          "name": "启动",
+          "description": "打开 Python 图形界面",
+          "default": true,
+          "args": []
+        }
+      }
+    },
+    "java_gui_demo": {
+      "module": "java_gui_demo",
+      "console_mode": "gui",
+      "description": "Java JAR 图形工具示例",
+      "jar": "tools\\demo\\java-gui\\tool.jar",
+      "java_executable": "java",
+      "launch_only": true,
+      "run_as_admin": false,
+      "startup_timeout": 2,
+      "modes": {
+        "open": {
+          "name": "启动",
+          "description": "打开 Java 图形界面",
+          "default": true,
+          "args": []
+        }
+      }
+    }
+  },
+  "workflows": {
+    "demo-audit": {
+      "module": "demo-audit",
+      "console_mode": "workflow",
+      "description": "顺序执行三种 CLI 程序的示例工作流",
+      "modes": {
+        "standard": {
+          "name": "标准流程",
+          "description": "依次执行 EXE、Python 和 Java 示例工具",
+          "default": true,
+          "steps": [
+            {"tool": "exe_cli_demo", "mode": "check"},
+            {"tool": "python_cli_demo", "mode": "scan"},
+            {"tool": "java_cli_demo", "mode": "audit"}
+          ]
+        }
+      }
+    }
+  }
+}

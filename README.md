@@ -123,6 +123,47 @@ python main.py workflow basic-web --target https://example.test --mode standard
 GUI 工具通常不需要 `--target`。启动成功后，Makit 会立即结束本次 `run`，图形程序
 继续独立运行。
 
+## 打包为 Windows EXE
+
+源码版本和打包版本可以同时保留。打包前只需安装一次 PyInstaller：
+
+```powershell
+py -m pip install pyinstaller
+```
+
+如果 PyInstaller 提示存在不兼容的旧版 `typing` 包，可执行
+`py -m pip uninstall typing`；Python 3.10 及以上已经内置 `typing`，不需要该回移植包。
+
+然后在项目根目录运行：
+
+```powershell
+.\build.cmd
+```
+
+脚本会先校验所有 Python 源文件、正式配置和 Demo 配置，再生成单文件控制台程序，
+并把 `config.demo.json` 复制为发布目录中可编辑的 `config.json`。正式配置、源码及
+第三方工具不会被删除或移动。脚本只会清理经过校验的项目 `release/` 目录，最终
+目录严格保留以下三个文件：
+
+```text
+release/
+├─ Makit.exe
+├─ config.json
+└─ README.md
+```
+
+`build/` 只保存 PyInstaller 的中间文件，`release/` 保存可分发文件；两者均不会由
+一键推送脚本上传。再次执行 `build.cmd` 会更新同名发布文件。
+
+打包版始终从 `Makit.exe` 所在目录读取 `config.json`，运行任务时才按配置创建
+`output/`。打包脚本不复制或创建 `tools/` 和 `output/`。
+发布版配置是一个不包含本机绝对路径的 Demo，展示 EXE、Python、Java 的 CLI/GUI
+配置和工作流；使用时应把示例程序路径与参数替换为实际工具的绝对路径，或者自行
+在发布目录旁准备所需工具目录。
+Python 脚本工具仍需使用 `PATH` 或 `python_executable` 指定的 Python，Java 工具仍需
+使用 `PATH`、`JAVA_HOME` 或 `java_executable` 指定的 Java。打包 Makit 本身不会把
+这些第三方解释器或工具嵌入 EXE。
+
 ## 工具配置完整参考
 
 Makit 不按工具名称编写专用执行代码。只要在 `config.json` 的 `tools` 对象中新增一项，
@@ -402,9 +443,14 @@ tooling/                工具模型、配置校验、目标和参数处理
 execution/              EXE/Python/Java 解析、CLI/GUI 执行和会话
 workflow/               工作流配置与执行
 config.json             操作模式、工具和工作流配置
+config.demo.json        打包时发布为 config.json 的通用示例配置
+build.cmd               保留源码并生成 release 发布目录
+build_support/hooks/    避免本地 workflow 包触发同名第三方打包 hook
 push.cmd                初始化、提交并推送到 GitHub
 tools/                  本地第三方工具目录，不上传
 output/                 本地运行结果目录，不上传
+build/                  PyInstaller 中间文件，不上传
+release/                EXE 发布目录，不上传
 ```
 
 ## 一键推送到 GitHub
