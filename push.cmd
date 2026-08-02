@@ -28,19 +28,34 @@ if errorlevel 1 (
     goto :failed
 )
 
-git remote get-url origin >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo Create an empty repository on GitHub first, then paste its HTTPS or SSH URL.
-    set "REMOTE_URL="
-    set /p "REMOTE_URL=GitHub repository URL: "
-    if not defined REMOTE_URL (
-        echo [ERROR] Repository URL cannot be empty.
-        goto :failed
-    )
-    git remote add origin "%REMOTE_URL%"
-    if errorlevel 1 goto :failed
+set "ORIGIN_URL="
+for /f "usebackq delims=" %%R in (`git remote get-url origin 2^>nul`) do set "ORIGIN_URL=%%R"
+if defined ORIGIN_URL goto :origin_ready
+
+echo.
+echo Create an empty repository on GitHub first, then paste its HTTPS or SSH URL.
+set "REMOTE_URL="
+set /p "REMOTE_URL=GitHub repository URL: "
+if not defined REMOTE_URL (
+    echo [ERROR] Repository URL cannot be empty.
+    goto :failed
 )
+
+git remote | findstr /x /c:"origin" >nul 2>&1
+if errorlevel 1 goto :add_origin
+git remote set-url origin "%REMOTE_URL%"
+if errorlevel 1 goto :failed
+goto :origin_configured
+
+:add_origin
+git remote add origin "%REMOTE_URL%"
+if errorlevel 1 goto :failed
+
+:origin_configured
+set "ORIGIN_URL=%REMOTE_URL%"
+
+:origin_ready
+echo [INFO] GitHub remote: %ORIGIN_URL%
 
 rem Remove private/local paths from the index if they were tracked previously.
 git rm -r --cached --ignore-unmatch -- AGENTS.md PROJECT_CONTEXT.md tools output reports "targets*.txt" module.xray.yaml plugin.xray.yaml xray.yaml >nul 2>&1
@@ -65,6 +80,7 @@ goto :push_changes
 
 :commit_changes
 set "COMMIT_MESSAGE="
+echo [INFO] Enter a short change description below, not the GitHub repository URL.
 set /p "COMMIT_MESSAGE=Commit message [Update project]: "
 if not defined COMMIT_MESSAGE set "COMMIT_MESSAGE=Update project"
 

@@ -84,7 +84,7 @@ def load_tools(config: dict[str, Any]) -> dict[str, Tool]:
                 raw_tool.get("working_directory"),
                 f"{location}.working_directory",
             )
-        if not isinstance(raw_tool.get("interactive", False), bool):
+        if not isinstance(raw_tool.get("interactive", True), bool):
             raise ValueError(f"{location}.interactive 必须是布尔值")
         if not isinstance(raw_tool.get("native_terminal", False), bool):
             raise ValueError(f"{location}.native_terminal 必须是布尔值")

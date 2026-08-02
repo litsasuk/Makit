@@ -144,7 +144,7 @@ Makit 不按工具名称编写专用执行代码。只要在 `config.json` 的 `
 | `required_files` | 附加规则、字典、配置等必需文件 |
 | `working_directory` | 可选运行目录；支持绝对路径、项目相对路径和环境变量 |
 | `encoding` | CLI 管道输出编码，默认 `utf-8` |
-| `interactive` | CLI 是否继承 stdin，默认 `false` |
+| `interactive` | CLI 是否继承 stdin，默认 `true`；设为 `false` 时使用 DEVNULL |
 | `preserve_color` | 通过颜色环境变量要求管道工具保留 ANSI |
 | `native_terminal` | CLI 直接继承 stdout/stderr，供只在 TTY 下着色的工具使用 |
 | `launch_only` | `true` 表示 GUI 启动型工具，不要求 URL |
@@ -158,6 +158,10 @@ Makit 不按工具名称编写专用执行代码。只要在 `config.json` 的 `
 Python 未指定解释器时先查找 `PATH` 中的 `python`，再使用启动 Makit 的 Python。
 Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
 `JAVA_HOME/bin/java(.exe)`。
+
+所有 CLI 工具默认继承当前终端输入，是否真正发生交互由工具自身是否读取 stdin
+决定。工具不需要输入时会正常运行；只有需要强制禁止工具等待输入时，才配置
+`"interactive": false`。
 
 ### 最小配置
 

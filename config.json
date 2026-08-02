@@ -416,7 +416,6 @@
       "required_files": ["tools\\sqlmap\\sqlmap.py"],
       "encoding": "utf-8",
       "preserve_color": true,
-      "interactive": true,
       "default_mode": "standard",
       "modes": {
         "quick": {

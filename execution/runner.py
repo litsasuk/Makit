@@ -236,7 +236,8 @@ class Runner:
 
         tool_config = self.config.get("tools", {}).get(tool_id, {})
         encoding = tool_config.get("encoding", "utf-8")
-        interactive = tool_config.get("interactive", False)
+        # CLI 默认继承当前终端输入；是否读取输入由工具自身决定。
+        interactive = tool_config.get("interactive", True)
         preserve_color = tool_config.get("preserve_color", False)
         native_terminal = tool_config.get("native_terminal", False)
         if not isinstance(preserve_color, bool):
@@ -251,9 +252,6 @@ class Runner:
             child_environment["FORCE_COLOR"] = "1"
             child_environment["CLICOLOR_FORCE"] = "1"
             child_environment.setdefault("TERM", "xterm-256color")
-
-        if interactive:
-            print(info(f"[{tool_id}] 交互输入已启用，请按工具提示输入选项。"))
 
         if native_terminal:
             output_file.write_text(
@@ -302,7 +300,7 @@ class Runner:
             cwd=working_directory,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            # 交互工具直接继承当前终端输入；其他工具禁止等待输入。
+            # 默认继承当前终端输入；显式关闭交互时使用 DEVNULL。
             stdin=None if interactive else subprocess.DEVNULL,
             text=True,
             encoding=encoding,
