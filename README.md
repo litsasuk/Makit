@@ -169,10 +169,18 @@ ZIP 内只包含 `Makit.exe`、`config.json` 和 `README.md`。`build/` 只保�
 
 ### GitHub Release 自动打包
 
-仓库中的 `.github/workflows/release.yml` 会在 GitHub Release 发布后使用 Windows
-环境构建相同的 `Makit-windows-x64.zip`，保存为 Actions Artifact，并自动附加到对应
-Release。该工作流也支持在 Actions 页面通过 `workflow_dispatch` 手动验证构建；手动
-运行只生成 Artifact，不会修改已有 Release。
+仓库中的 `.github/workflows/release.yml` 支持两种发布方式：推送 `Makit_V*` 版本
+标签时，使用 Windows 环境构建 `Makit-windows-x64.zip`、创建 GitHub Release 并附加
+ZIP；从 GitHub 页面手动发布 Release 时，则自动构建并把 ZIP 附加到对应 Release。
+两种方式都会保存 Actions Artifact。工作流也支持通过 `workflow_dispatch` 手动验证
+构建；手动运行只生成 Artifact，不会修改已有 Release。
+
+推荐使用版本标签发布：
+
+```powershell
+git tag Makit_V1.1.0
+git push origin Makit_V1.1.0
+```
 
 自动发布包同样使用公开的 `config.demo.json`，不会包含维护者本机的 `config.json`、
 `tools/`、扫描目标或运行结果。

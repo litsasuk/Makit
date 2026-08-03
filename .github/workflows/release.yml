@@ -1,6 +1,9 @@
 name: Build Windows release
 
 on:
+  push:
+    tags:
+      - "Makit_V*"
   release:
     types: [published]
   workflow_dispatch:
@@ -45,3 +48,15 @@ jobs:
           gh release upload "${{ github.event.release.tag_name }}"
           "release/Makit-windows-x64.zip#Makit Windows x64"
           --clobber
+
+      - name: Create GitHub Release from version tag
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${{ github.ref_name }}"
+          "release/Makit-windows-x64.zip#Makit Windows x64"
+          --verify-tag
+          --generate-notes
+          --title "${{ github.ref_name }}"
