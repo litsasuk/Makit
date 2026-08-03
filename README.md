@@ -178,8 +178,8 @@ ZIP；从 GitHub 页面手动发布 Release 时，则自动构建并把 ZIP 附�
 推荐使用版本标签发布：
 
 ```powershell
-git tag Makit_V1.1.0
-git push origin Makit_V1.1.0
+git tag Makit_V2.0.0
+git push origin Makit_V2.0.0
 ```
 
 自动发布包同样使用公开的 `config.demo.json`，不会包含维护者本机的 `config.json`、
