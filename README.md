@@ -132,8 +132,7 @@ GUI 工具通常不需要 `--target`。启动成功后，Makit 会立即结束�
 
 ## 打包为 Windows EXE
 
-`build.cmd` 和 `build_support/` 随源码发布，本地构建与 GitHub Actions 共用同一套
-打包流程。
+`build.cmd` 和 `build_support/` 随源码发布，供维护者在本地生成 Windows 发布包。
 
 源码版本和打包版本可以同时保留。打包前只需安装一次 PyInstaller：
 
@@ -167,23 +166,17 @@ ZIP 内只包含 `Makit.exe`、`config.json` 和 `README.md`。`build/` 只保�
 的中间文件，`release/` 保存本地发布产物；两者均由 `.gitignore` 排除。再次执行
 `build.cmd` 会更新同名 EXE 和 ZIP。
 
-### GitHub Release 自动打包
+### 手动发布 GitHub Release
 
-仓库中的 `.github/workflows/release.yml` 支持两种发布方式：推送 `Makit_V*` 版本
-标签时，使用 Windows 环境构建 `Makit-windows-x64.zip`、创建 GitHub Release 并附加
-ZIP；从 GitHub 页面手动发布 Release 时，则自动构建并把 ZIP 附加到对应 Release。
-两种方式都会保存 Actions Artifact。工作流也支持通过 `workflow_dispatch` 手动验证
-构建；手动运行只生成 Artifact，不会修改已有 Release。
+日常更新只提交并推送源码，不会自动创建或修改 GitHub Release。准备发布新版本时：
 
-推荐使用版本标签发布：
+1. 在项目根目录运行 `.\build.cmd`；
+2. 确认生成 `release/Makit-windows-x64.zip`；
+3. 在 GitHub Releases 页面手动创建或编辑对应版本；
+4. 手动上传 `Makit-windows-x64.zip`。
 
-```powershell
-git tag Makit_V2.0.0
-git push origin Makit_V2.0.0
-```
-
-自动发布包同样使用公开的 `config.demo.json`，不会包含维护者本机的 `config.json`、
-`tools/`、扫描目标或运行结果。
+发布包使用公开的 `config.demo.json`，不会包含维护者本机的 `config.json`、`tools/`、
+扫描目标或运行结果。`build/` 和 `release/` 均被 Git 忽略，不会随源码推送。
 
 打包版始终从 `Makit.exe` 所在目录读取 `config.json`，运行任务时才按配置创建
 `output/`。打包脚本不复制或创建 `tools/` 和 `output/`。
@@ -483,9 +476,8 @@ workflow/               工作流配置与执行
 tests/                  配置结构和命令编辑离线回归测试
 config.json             本机正式配置，不上传
 config.demo.json        公开的通用配置示例
-build.cmd               本地与 GitHub Actions 共用的打包脚本
+build.cmd               维护者本地生成 EXE 和 ZIP 的打包脚本
 build_support/hooks/    PyInstaller 构建 hook
-.github/workflows/      GitHub Release 自动构建与附件上传
 push.cmd                本地一键推送脚本，不上传
 tools/                  本地第三方工具目录，不上传
 output/                 本地运行结果目录，不上传
@@ -498,7 +490,8 @@ release/                EXE 发布目录，不上传
 
 `push.cmd` 只保留在维护者本机，不属于公开仓库内容。它会在提交前自动从 Git 索引移除
 正式配置、私有脚本、第三方工具和运行输出，同时保留本地文件；公开的 `.gitignore`、
-`build.cmd`、`build_support/` 和 `.github/workflows/` 会正常提交。
+`build.cmd` 和 `build_support/` 会正常提交。脚本只更新源码，不创建或上传 GitHub
+Release。
 
 1. 在 GitHub 上创建一个空仓库，不要预先添加 README 或 License；
 2. 双击项目根目录下的 `push.cmd`；
