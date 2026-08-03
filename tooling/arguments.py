@@ -29,19 +29,22 @@ def build_arguments(
     }
 
     arguments = mode.arguments
-    if target is None:
-        if mode.requires_target:
+    if mode.requires_url:
+        if target is None:
             raise ValueError(f"工具 {tool.id!r} 的 {mode.id!r} 方式需要 URL")
-    else:
         primary_target = target.urls[0]
         replacements.update(
             {
-                "target": primary_target,
+                "url": primary_target,
                 "host": host_from_target(primary_target),
             }
         )
-    if target is not None and target.is_list:
-        if mode.list_arguments is None:
+        if not target.is_list:
+            if mode.url_arguments is None:
+                raise ValueError(f"工具 {tool.id!r} 的 {mode.id!r} 方式不接受 URL")
+            arguments = mode.url_arguments
+    if mode.requires_url and target is not None and target.is_list:
+        if mode.url_file_arguments is None:
             raise ValueError(f"工具 {tool.id!r} 的 {mode.id!r} 方式不支持 TXT 列表")
         normalized_target_file = output_dir / "targets.txt"
         normalized_target_file.write_text(
@@ -52,11 +55,11 @@ def build_arguments(
         normalized_host_file.write_text("\n".join(hosts) + "\n", encoding="utf-8")
         replacements.update(
             {
-                "target_file": str(normalized_target_file),
+                "url_file": str(normalized_target_file),
                 "host_file": str(normalized_host_file),
             }
         )
-        arguments = mode.list_arguments
+        arguments = mode.url_file_arguments
 
     rendered: list[str] = []
     for argument in arguments:

@@ -10,6 +10,7 @@ import ctypes
 import json
 import os
 import queue
+import shlex
 import signal
 import subprocess
 import sys
@@ -24,6 +25,42 @@ from execution.programs import ProgramResolver, ResolvedProgram, ToolUnavailable
 from execution.sessions import RunResult, RunSession, create_session
 from configuration import load_config
 from console.ui import error, info, success, warning
+
+
+def format_command(command: list[str]) -> str:
+    """将参数数组格式化为当前平台可编辑的命令行。"""
+    if os.name == "nt":
+        return subprocess.list2cmdline(command)
+    return shlex.join(command)
+
+
+def parse_command(command_line: str) -> list[str]:
+    """将用户编辑后的命令安全解析为参数数组，不经过 Shell。"""
+    if not command_line.strip():
+        raise ValueError("工具调用命令不能为空")
+    if any(character in command_line for character in ("\x00", "\r", "\n")):
+        raise ValueError("工具调用命令不能包含 NUL 或换行字符")
+    if os.name != "nt":
+        try:
+            return shlex.split(command_line, posix=True)
+        except ValueError as exc:
+            raise ValueError(f"工具调用命令格式错误：{exc}") from exc
+
+    argv = ctypes.POINTER(wintypes.LPWSTR)()
+    argument_count = ctypes.c_int()
+    command_line_to_argv = ctypes.windll.shell32.CommandLineToArgvW
+    command_line_to_argv.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    command_line_to_argv.restype = ctypes.POINTER(wintypes.LPWSTR)
+    argv = command_line_to_argv(command_line, ctypes.byref(argument_count))
+    if not argv:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return [argv[index] for index in range(argument_count.value)]
+    finally:
+        ctypes.windll.kernel32.LocalFree(argv)
 
 
 class _ShellExecuteInfoW(ctypes.Structure):
@@ -123,6 +160,16 @@ class Runner:
         resolved, _ = self._resolve_plan(tool_id, launch=False)
         return list(resolved.command)
 
+    def build_command(
+        self,
+        tool_id: str,
+        arguments: list[str] | None = None,
+        *,
+        launch: bool = False,
+    ) -> list[str]:
+        resolved, _ = self._resolve_plan(tool_id, launch=launch)
+        return [*resolved.command, *map(str, arguments or ())]
+
     def _resolve_plan(
         self, tool_id: str, *, launch: bool
     ) -> tuple[ResolvedProgram, Path]:
@@ -141,10 +188,13 @@ class Runner:
         tool_id: str,
         arguments: list[str] | None = None,
         run_as_admin: bool = False,
+        command: list[str] | None = None,
     ) -> int:
         """按配置参数启动独立 GUI 工具，启动完成后立即返回。"""
         resolved, working_directory = self._resolve_plan(tool_id, launch=True)
-        command = [*resolved.command, *map(str, arguments or ())]
+        command = command or [*resolved.command, *map(str, arguments or ())]
+        if not command:
+            raise ValueError("工具调用命令不能为空")
         tool_config = self.config.get("tools", {}).get(tool_id, {})
         encoding = tool_config.get("encoding", "utf-8")
         startup_timeout = float(tool_config.get("startup_timeout", 2.0))
@@ -214,9 +264,12 @@ class Runner:
         arguments: list[str],
         session: RunSession,
         sensitive_values: tuple[str, ...] = (),
+        command: list[str] | None = None,
     ) -> RunResult:
         resolved, working_directory = self._resolve_plan(tool_id, launch=False)
-        command = [*resolved.command, *map(str, arguments)]
+        command = command or [*resolved.command, *map(str, arguments)]
+        if not command:
+            raise ValueError("工具调用命令不能为空")
         display_parts = command.copy()
         for index, argument in enumerate(display_parts):
             redacted = argument
@@ -229,7 +282,7 @@ class Runner:
                 )
                 redacted = redacted.replace(sensitive_value, replacement)
             display_parts[index] = redacted
-        display_command = subprocess.list2cmdline(display_parts)
+        display_command = format_command(display_parts)
         output_file = session.directory / f"{tool_id}.log"
 
         print(info(f"[{tool_id}] {display_command}"))
@@ -244,7 +297,7 @@ class Runner:
         encoding = tool_config.get("encoding", "utf-8")
         # CLI 默认继承当前终端输入；是否读取输入由工具自身决定。
         interactive = tool_config.get("interactive", True)
-        preserve_color = tool_config.get("preserve_color", False)
+        preserve_color = tool_config.get("preserve_color", True)
         native_terminal = tool_config.get("native_terminal", False)
         if not isinstance(preserve_color, bool):
             raise ValueError(f"工具 {tool_id!r} 的 preserve_color 必须是布尔值")
@@ -327,6 +380,10 @@ class Runner:
         def read_output() -> None:
             try:
                 assert process.stdout is not None
+                # TextIOWrapper 默认会把独立的 \r 转换成 \n，导致工具用 \r
+                # 刷新的进度条在 Makit 中变成一行一条。保留原始换行后，交互
+                # 工具可直接原地刷新，非交互工具则交给下方进度行分支处理。
+                process.stdout.reconfigure(newline="")
                 if interactive:
                     while True:
                         character = process.stdout.read(1)
@@ -334,8 +391,6 @@ class Runner:
                             break
                         output_queue.put(character)
                 else:
-                    # 保留原始换行符，以区分普通换行和工具用来刷新进度的 \r。
-                    process.stdout.reconfigure(newline="")
                     for line in process.stdout:
                         output_queue.put(line)
             except BaseException as exc:

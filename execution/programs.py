@@ -162,22 +162,9 @@ class ProgramResolver:
                 return candidate.resolve()
         return None
 
-    def required_files_available(self, tool_config: Mapping[str, Any]) -> bool:
-        for configured in tool_config.get("required_files", []):
-            if not isinstance(configured, str):
-                return False
-            if self._resolve_file(configured) is None:
-                return False
-        return True
-
     def resolve_required(
         self, tool_id: str, tool_config: Mapping[str, Any]
     ) -> ResolvedProgram:
-        if not self.required_files_available(tool_config):
-            raise ToolUnavailable(
-                f"工具 {tool_id!r} 缺少 required_files 中的文件"
-            )
-
         spec = program_spec_from_config(tool_config, f"tools.{tool_id}")
         if spec.kind is ProgramKind.EXECUTABLE:
             executable = self._resolve_program(spec.source)

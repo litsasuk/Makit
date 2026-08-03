@@ -12,8 +12,9 @@ class TestMode:
     name: str
     description: str
     arguments: tuple[str, ...]
-    list_arguments: tuple[str, ...] | None
-    requires_target: bool = True
+    url_arguments: tuple[str, ...] | None
+    url_file_arguments: tuple[str, ...] | None
+    requires_url: bool
 
 
 @dataclass(frozen=True)

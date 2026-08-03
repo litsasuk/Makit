@@ -17,8 +17,8 @@ from tooling.targets import (
 
 TOOL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 PLACEHOLDER_PATTERN = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
-ALLOWED_PLACEHOLDERS = frozenset({"target", "host", "output_dir"})
-LIST_PLACEHOLDERS = frozenset({"target_file", "host_file"})
+URL_PLACEHOLDERS = frozenset({"url", "host", "output_dir"})
+URL_FILE_PLACEHOLDERS = frozenset({"url_file", "host_file", "output_dir"})
 HEADER_PLACEHOLDERS = frozenset({"header", "cookie"})
 
 
@@ -88,7 +88,7 @@ def load_tools(config: dict[str, Any]) -> dict[str, Tool]:
             raise ValueError(f"{location}.interactive 必须是布尔值")
         if not isinstance(raw_tool.get("native_terminal", False), bool):
             raise ValueError(f"{location}.native_terminal 必须是布尔值")
-        if not isinstance(raw_tool.get("preserve_color", False), bool):
+        if not isinstance(raw_tool.get("preserve_color", True), bool):
             raise ValueError(f"{location}.preserve_color 必须是布尔值")
         launch_only = raw_tool.get("launch_only", False)
         if not isinstance(launch_only, bool):
@@ -107,11 +107,6 @@ def load_tools(config: dict[str, Any]) -> dict[str, Tool]:
             raise ValueError(f"{location}.startup_timeout 必须是 0 到 30 之间的数字")
         if "startup_timeout" in raw_tool and not launch_only:
             raise ValueError(f"{location}.startup_timeout 仅适用于 launch_only 工具")
-        required_files = raw_tool.get("required_files", [])
-        if not isinstance(required_files, list) or any(
-            not isinstance(item, str) or not item.strip() for item in required_files
-        ):
-            raise ValueError(f"{location}.required_files 必须是字符串数组")
         module = _required_text(
             raw_tool.get("module", f"scanner/{tool_id}"), f"{location}.module"
         )
@@ -166,20 +161,57 @@ def load_tools(config: dict[str, Any]) -> dict[str, Tool]:
                 raise ValueError(f"{mode_location}.default 必须是布尔值")
             if is_default:
                 marked_default_modes.append(mode_id)
-            requires_target = raw_mode.get("requires_target", not launch_only)
-            if not isinstance(requires_target, bool):
-                raise ValueError(f"{mode_location}.requires_target 必须是布尔值")
-            if launch_only and requires_target:
+            requires_url = raw_mode.get("requires_url")
+            if not isinstance(requires_url, bool):
+                raise ValueError(f"{mode_location}.requires_url 必须是布尔值")
+            if launch_only and requires_url:
                 raise ValueError(
-                    f"{mode_location}.requires_target 对 launch_only 工具必须为 false"
+                    f"{mode_location}.requires_url 对 launch_only 工具必须为 false"
                 )
-            argument_placeholders = (
-                frozenset()
-                if launch_only
-                else ALLOWED_PLACEHOLDERS
-                if requires_target
-                else frozenset({"output_dir"})
+            if requires_url and raw_mode.get("args") is not None:
+                raise ValueError(
+                    f"{mode_location} 需要 URL 时请使用 url_args，不要使用 args"
+                )
+            if not requires_url and (
+                raw_mode.get("url_args") is not None
+                or raw_mode.get("url_file_args") is not None
+            ):
+                raise ValueError(
+                    f"{mode_location} 不需要 URL 时不能配置 url_args/url_file_args"
+                )
+            url_arguments = (
+                _load_arguments(
+                    raw_mode.get("url_args"),
+                    f"{mode_location}.url_args",
+                    URL_PLACEHOLDERS,
+                )
+                if requires_url
+                else None
             )
+            if url_arguments is not None and not any(
+                "{url}" in argument or "{host}" in argument
+                for argument in url_arguments
+            ):
+                raise ValueError(
+                    f"{mode_location}.url_args 必须包含 {{url}} 或 {{host}}"
+                )
+            url_file_arguments = (
+                _load_arguments(
+                    raw_mode.get("url_file_args"),
+                    f"{mode_location}.url_file_args",
+                    URL_FILE_PLACEHOLDERS,
+                )
+                if raw_mode.get("url_file_args") is not None
+                else None
+            )
+            if url_file_arguments is not None and not any(
+                "{url_file}" in argument or "{host_file}" in argument
+                for argument in url_file_arguments
+            ):
+                raise ValueError(
+                    f"{mode_location}.url_file_args 必须包含 "
+                    "{url_file} 或 {host_file}"
+                )
             modes.append(
                 TestMode(
                     id=mode_id,
@@ -190,22 +222,23 @@ def load_tools(config: dict[str, Any]) -> dict[str, Tool]:
                         raw_mode.get("description", mode_id),
                         f"{mode_location}.description",
                     ),
-                    requires_target=requires_target,
-                    arguments=_load_arguments(
-                        raw_mode.get("args"),
-                        f"{mode_location}.args",
-                        argument_placeholders,
-                        allow_empty=launch_only or not requires_target,
-                    ),
-                    list_arguments=(
-                        _load_arguments(
-                            raw_mode.get("list_args"),
-                            f"{mode_location}.list_args",
-                            ALLOWED_PLACEHOLDERS | LIST_PLACEHOLDERS,
+                    requires_url=requires_url,
+                    arguments=(
+                        ()
+                        if requires_url
+                        else _load_arguments(
+                            raw_mode.get("args"),
+                            f"{mode_location}.args",
+                            (
+                                frozenset()
+                                if launch_only
+                                else frozenset({"output_dir"})
+                            ),
+                            allow_empty=True,
                         )
-                        if raw_mode.get("list_args") is not None
-                        else None
                     ),
+                    url_arguments=url_arguments,
+                    url_file_arguments=url_file_arguments,
                 )
             )
 
@@ -231,14 +264,6 @@ def load_tools(config: dict[str, Any]) -> dict[str, Tool]:
             )
         if default_mode not in {mode.id for mode in modes}:
             raise ValueError(f"{location}.default_mode 未在 modes 中定义：{default_mode}")
-        if any(
-            (launch_only or not mode.requires_target)
-            and mode.list_arguments is not None
-            for mode in modes
-        ):
-            raise ValueError(
-                f"{location} 的 launch_only/无需目标模式不能配置 list_args"
-            )
         tools[tool_id] = Tool(
             id=tool_id,
             module=module,

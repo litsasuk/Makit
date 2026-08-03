@@ -85,8 +85,9 @@ makit > recon
 makit (recon) > 1
 makit (recon/nmap) > example.test
 makit (recon/nmap) > set mode quick
-makit (recon/nmap) > show
 makit (recon/nmap) > run
+当前工具调用命令如下；可直接修改或追加参数，按回车后执行。
+command > D:\tools\nmap.exe -sT -Pn -T4 -sV --top-ports 100 ... example.test
 ```
 
 裸域名默认补全为 `https://`；80、8000、8080、8888 端口默认补全为 `http://`。
@@ -100,14 +101,13 @@ TXT 文件使用 UTF-8 编码，每行一个域名或 URL，空行与 `#` 注释
 | `show modes` | 显示操作模式；选中模块后显示该模块的功能模式 |
 | `show tools` | 显示当前操作模式中的工具 |
 | `use <编号或名称>` | 选择操作模式或工具 |
-| `show` | 显示当前 URL、MODE 和 HEADERS |
 | `<域名或 URL>` | 直接设置当前目标 |
 | `set url <URL或TXT>` | 设置单目标或 UTF-8 TXT 列表 |
 | `set mode <编号或名称>` | 切换工具功能模式 |
 | `set header "Name: Value"` | 添加或替换 HTTP 请求头 |
 | `set cookie "a=b"` | 设置 Cookie 请求头 |
 | `unset header <名称/all>` | 删除一个或全部请求头 |
-| `run` | 执行当前工具或工作流 |
+| `run` | 显示可编辑的完整工具命令，按回车后执行 |
 | `b` / `back` | 返回上一级 |
 | `q` / `exit` / `quit` | 退出 Makit |
 
@@ -125,10 +125,15 @@ python main.py workflow basic-web --target https://example.test --mode standard
 GUI 工具通常不需要 `--target`。启动成功后，Makit 会立即结束本次 `run`，图形程序
 继续独立运行。
 
+交互控制台中的单工具 `run` 会把当前完整命令直接放进编辑行。左右键按字符移动，
+上下键按显示行在当前跨行命令内移动（不会切换命令历史）；也可使用 Home/End、退格
+和 Delete 修改参数，或在末尾直接追加工具原生参数。按回车后才会执行。命令始终解析
+为参数数组并以 `shell=False` 启动。非交互 `run` 和工作流不会停下来编辑命令。
+
 ## 打包为 Windows EXE
 
-`build.cmd` 和 `build_support/` 是本地维护文件，不上传到仓库；以下流程适用于持有
-完整本地项目的维护者。
+`build.cmd` 和 `build_support/` 随源码发布，本地构建与 GitHub Actions 共用同一套
+打包流程。
 
 源码版本和打包版本可以同时保留。打包前只需安装一次 PyInstaller：
 
@@ -145,20 +150,32 @@ py -m pip install pyinstaller
 .\build.cmd
 ```
 
-脚本会先校验所有 Python 源文件、正式配置和 Demo 配置，再生成单文件控制台程序，
-并把 `config.demo.json` 复制为发布目录中可编辑的 `config.json`。正式配置、源码及
-第三方工具不会被删除或移动。脚本只会清理经过校验的项目 `release/` 目录，最终
-目录严格保留以下三个文件：
+脚本会先校验所有 Python 源文件和 Demo 配置；本机存在正式配置时也会校验其 JSON
+语法。随后生成单文件控制台程序，并把 `config.demo.json` 复制为发布目录中可编辑的
+`config.json`。正式配置、源码及第三方工具不会被删除或移动。脚本只会清理经过校验
+的项目 `release/` 目录，最终目录严格保留以下四个文件：
 
 ```text
 release/
 ├─ Makit.exe
 ├─ config.json
-└─ README.md
+├─ README.md
+└─ Makit-windows-x64.zip
 ```
 
-`build/` 只保存 PyInstaller 的中间文件，`release/` 保存可分发文件；两者均不会由
-一键推送脚本上传。再次执行 `build.cmd` 会更新同名发布文件。
+ZIP 内只包含 `Makit.exe`、`config.json` 和 `README.md`。`build/` 只保存 PyInstaller
+的中间文件，`release/` 保存本地发布产物；两者均由 `.gitignore` 排除。再次执行
+`build.cmd` 会更新同名 EXE 和 ZIP。
+
+### GitHub Release 自动打包
+
+仓库中的 `.github/workflows/release.yml` 会在 GitHub Release 发布后使用 Windows
+环境构建相同的 `Makit-windows-x64.zip`，保存为 Actions Artifact，并自动附加到对应
+Release。该工作流也支持在 Actions 页面通过 `workflow_dispatch` 手动验证构建；手动
+运行只生成 Artifact，不会修改已有 Release。
+
+自动发布包同样使用公开的 `config.demo.json`，不会包含维护者本机的 `config.json`、
+`tools/`、扫描目标或运行结果。
 
 打包版始终从 `Makit.exe` 所在目录读取 `config.json`，运行任务时才按配置创建
 `output/`。打包脚本不复制或创建 `tools/` 和 `output/`。
@@ -187,11 +204,10 @@ Makit 不按工具名称编写专用执行代码。只要在 `config.json` 的 `
 | `python_executable` | 可选；Python 绝对路径、项目相对路径或 `PATH` 命令名 |
 | `jar` | `.jar` 文件路径 |
 | `java_executable` | 可选；Java 绝对路径、项目相对路径或 `PATH` 命令名 |
-| `required_files` | 附加规则、字典、配置等必需文件 |
 | `working_directory` | 可选运行目录；支持绝对路径、项目相对路径和环境变量 |
 | `encoding` | CLI 管道输出编码，默认 `utf-8` |
 | `interactive` | CLI 是否继承 stdin，默认 `true`；设为 `false` 时使用 DEVNULL |
-| `preserve_color` | 通过颜色环境变量要求管道工具保留 ANSI |
+| `preserve_color` | 是否通过颜色环境变量要求管道工具保留 ANSI，默认 `true` |
 | `native_terminal` | CLI 直接继承 stdout/stderr，供只在 TTY 下着色的工具使用 |
 | `launch_only` | `true` 表示 GUI 启动型工具，不要求 URL |
 | `run_as_admin` | GUI 是否通过 Windows UAC 启动 |
@@ -204,6 +220,8 @@ Makit 不按工具名称编写专用执行代码。只要在 `config.json` 的 `
 Python 未指定解释器时先查找 `PATH` 中的 `python`，再使用启动 Makit 的 Python。
 Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
 `JAVA_HOME/bin/java(.exe)`。
+`executable`、`script` 或 `jar` 指定的程序入口会在运行前自动检查，无需另行配置
+必需文件字段。
 
 所有 CLI 工具默认继承当前终端输入，是否真正发生交互由工具自身是否读取 stdin
 决定。工具不需要输入时会正常运行；只有需要强制禁止工具等待输入时，才配置
@@ -224,7 +242,8 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
       "name": "检查",
       "description": "检查单个目标",
       "default": true,
-      "args": ["--url", "{target}", "--output", "{output_dir}\\result.json"]
+      "requires_url": true,
+      "url_args": ["--url", "{url}", "--output", "{output_dir}\\result.json"]
     }
   }
 }
@@ -234,17 +253,17 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
 
 | 占位符 | 说明 |
 | --- | --- |
-| `{target}` | 校验并规范化后的完整 URL |
+| `{url}` | 校验并规范化后的完整 URL |
 | `{host}` | 从 URL 提取的主机名 |
 | `{output_dir}` | 本次任务的独立输出目录 |
-| `{target_file}` | 校验和去重后的 URL 列表文件 |
+| `{url_file}` | 校验和去重后的 URL 列表文件 |
 | `{host_file}` | 从列表提取的主机名文件 |
 | `{header}` | 完整 HTTP 请求头，仅用于 `header_args` |
 | `{cookie}` | Cookie 值，仅用于 `cookie_args` |
 
 模式 ID 和名称可自由设置，不要求使用 `standard`、`quick` 或 `full`。模式内设置
 `"default": true` 可将其设为默认模式；无需目标的 CLI 模式可设置
-`"requires_target": false`。
+`"requires_url": false`。
 
 ### 模式字段
 
@@ -254,19 +273,20 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
     "name": "检查",
     "description": "执行默认检查",
     "default": true,
-    "requires_target": true,
-    "args": ["--url", "{target}", "--output", "{output_dir}\\result.json"],
-    "list_args": ["--list", "{target_file}", "--output", "{output_dir}\\result.json"]
+    "requires_url": true,
+    "url_args": ["--url", "{url}", "--output", "{output_dir}\\result.json"],
+    "url_file_args": ["--list", "{url_file}", "--output", "{output_dir}\\result.json"]
   }
 }
 ```
 
 - 模式 ID、显示名称、说明和排列顺序完全由配置决定；
 - 同一工具最多一个模式可设置 `default: true`；
-- `requires_target` 对 CLI 默认是 `true`；设为 `false` 后 `args` 可以为空，且只能
-  使用 `{output_dir}` 占位符；
-- `list_args` 只适用于需要目标的 CLI 模式；
-- GUI 模式的 `requires_target` 固定为 `false`，`args` 可为空或包含静态启动参数，
+- 每个模式都必须显式配置 `requires_url`；
+- `requires_url: true` 时必须使用 `url_args`，其中至少包含 `{url}` 或 `{host}`；
+- `url_file_args` 可选，用于 TXT 列表，至少包含 `{url_file}` 或 `{host_file}`；
+- `requires_url: false` 时使用 `args`，可以为空，且只能使用 `{output_dir}`；
+- GUI 模式的 `requires_url` 固定为 `false`，`args` 可为空或包含静态启动参数，
   不接受目标或输出占位符。
 
 ### 六种完整配置示例
@@ -284,7 +304,7 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
       "name": "运行",
       "description": "无需目标直接运行",
       "default": true,
-      "requires_target": false,
+      "requires_url": false,
       "args": ["--version"]
     }
   }
@@ -306,6 +326,7 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
       "name": "打开",
       "description": "打开图形界面",
       "default": true,
+      "requires_url": false,
       "args": ["--profile", "default"]
     }
   }
@@ -326,14 +347,15 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
       "name": "检查",
       "description": "检查目标",
       "default": true,
-      "args": ["--url", "{target}"]
+      "requires_url": true,
+      "url_args": ["--url", "{url}"]
     }
   }
 }
 ```
 
-`python_executable` 可以省略，也可以填写 `python` 或具体解释器路径。配置的 `args`
-中不需要重复加入解释器、`-u` 或脚本路径。
+`python_executable` 可以省略，也可以填写 `python` 或具体解释器路径。模式参数中不需要
+重复加入解释器、`-u` 或脚本路径。
 
 #### Python GUI
 
@@ -350,6 +372,7 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
       "name": "打开",
       "description": "打开 Python GUI",
       "default": true,
+      "requires_url": false,
       "args": []
     }
   }
@@ -370,7 +393,8 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
       "name": "检查",
       "description": "检查目标",
       "default": true,
-      "args": ["--url", "{target}"]
+      "requires_url": true,
+      "url_args": ["--url", "{url}"]
     }
   }
 }
@@ -391,14 +415,15 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
       "name": "打开",
       "description": "打开 Java GUI",
       "default": true,
+      "requires_url": false,
       "args": []
     }
   }
 }
 ```
 
-`java_executable` 可以省略，也可以填写 `java` 或具体解释器路径。配置的 `args` 中
-不需要重复加入 `-jar` 或 JAR 路径。
+`java_executable` 可以省略，也可以填写 `java` 或具体解释器路径。模式参数中不需要
+重复加入 `-jar` 或 JAR 路径。
 
 ## 工作流
 
@@ -434,9 +459,9 @@ Java 未指定解释器时先查找 `PATH` 中的 `java`，再查找
 - `<tool>.log`：工具标准输出；
 - 工具自身生成的 HTML、JSON 或其他结果文件。
 
-Cookie、Authorization 等请求头值不会显示在选项表、控制台命令或命令日志中。
-正式 `config.json`、本地维护脚本、`output/`、目标列表、Agent 内部文档和 `tools/`
-由维护者本机的 `.gitignore` 排除；该忽略文件本身也不上传。
+Cookie、Authorization 等请求头值不会显示在命令编辑行、控制台命令或命令日志中。
+正式 `config.json`、本地推送脚本、`output/`、目标列表、Agent 内部文档和 `tools/`
+由仓库中的 `.gitignore` 排除。
 
 ## 项目结构
 
@@ -447,24 +472,27 @@ console/                CLI、交互状态、表格和颜色
 tooling/                工具模型、配置校验、目标和参数处理
 execution/              EXE/Python/Java 解析、CLI/GUI 执行和会话
 workflow/               工作流配置与执行
+tests/                  配置结构和命令编辑离线回归测试
 config.json             本机正式配置，不上传
 config.demo.json        公开的通用配置示例
-build.cmd               本地打包脚本，不上传
-build_support/hooks/    本地 PyInstaller hook，不上传
+build.cmd               本地与 GitHub Actions 共用的打包脚本
+build_support/hooks/    PyInstaller 构建 hook
+.github/workflows/      GitHub Release 自动构建与附件上传
 push.cmd                本地一键推送脚本，不上传
 tools/                  本地第三方工具目录，不上传
 output/                 本地运行结果目录，不上传
 build/                  PyInstaller 中间文件，不上传
 release/                EXE 发布目录，不上传
-.gitignore              本机 Git 忽略规则，不上传
+.gitignore              公开的 Git 忽略规则
 ```
 
 ## 一键推送到 GitHub
 
 `push.cmd` 只保留在维护者本机，不属于公开仓库内容。它会在提交前自动从 Git 索引移除
-`.gitignore`、正式配置、维护脚本、第三方工具和运行输出，同时保留本地文件。
+正式配置、私有脚本、第三方工具和运行输出，同时保留本地文件；公开的 `.gitignore`、
+`build.cmd`、`build_support/` 和 `.github/workflows/` 会正常提交。
 
-1. 在 GitHub 上创建一个空仓库，不要预先添加 README、License 或 `.gitignore`；
+1. 在 GitHub 上创建一个空仓库，不要预先添加 README 或 License；
 2. 双击项目根目录下的 `push.cmd`；
 3. 首次运行时粘贴 GitHub 仓库的 HTTPS 或 SSH 地址；
 4. 输入提交说明，脚本会执行初始化、暂存、提交和推送；

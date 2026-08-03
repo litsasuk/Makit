@@ -29,19 +29,21 @@
           "name": "基础检查",
           "description": "演示单目标、列表、请求头和输出目录参数",
           "default": true,
-          "args": [
-            "--url", "{target}",
+          "requires_url": true,
+          "url_args": [
+            "--url", "{url}",
             "--output", "{output_dir}\\exe-result.json"
           ],
-          "list_args": [
-            "--url-file", "{target_file}",
+          "url_file_args": [
+            "--url-file", "{url_file}",
             "--output", "{output_dir}\\exe-result.json"
           ]
         },
         "host-audit": {
           "name": "主机检查",
           "description": "演示从 URL 提取主机名",
-          "args": ["--host", "{host}"]
+          "requires_url": true,
+          "url_args": ["--host", "{host}"]
         }
       }
     },
@@ -53,14 +55,14 @@
       "python_executable": "python",
       "encoding": "utf-8",
       "interactive": true,
-      "preserve_color": true,
       "modes": {
         "scan": {
           "name": "扫描",
           "description": "演示 Python 脚本的目标参数",
           "default": true,
-          "args": ["--target", "{target}"],
-          "list_args": ["--targets", "{target_file}"]
+          "requires_url": true,
+          "url_args": ["--target", "{url}"],
+          "url_file_args": ["--targets", "{url_file}"]
         }
       }
     },
@@ -77,8 +79,9 @@
           "name": "审计",
           "description": "演示 Java JAR 的命令行参数",
           "default": true,
-          "args": ["--url", "{target}", "--report", "{output_dir}\\java-report.html"],
-          "list_args": ["--list", "{target_file}", "--report", "{output_dir}\\java-report.html"]
+          "requires_url": true,
+          "url_args": ["--url", "{url}", "--report", "{output_dir}\\java-report.html"],
+          "url_file_args": ["--list", "{url_file}", "--report", "{output_dir}\\java-report.html"]
         }
       }
     },
@@ -95,6 +98,7 @@
           "name": "启动",
           "description": "打开 EXE 图形界面",
           "default": true,
+          "requires_url": false,
           "args": []
         }
       }
@@ -112,6 +116,7 @@
           "name": "启动",
           "description": "打开 Python 图形界面",
           "default": true,
+          "requires_url": false,
           "args": []
         }
       }
@@ -130,6 +135,7 @@
           "name": "启动",
           "description": "打开 Java 图形界面",
           "default": true,
+          "requires_url": false,
           "args": []
         }
       }

@@ -14,11 +14,17 @@ from console.catalog import (
     build_modules,
     load_console_modes,
     modes_for,
-    module_header_description,
     module_supports_header_name,
     modules_for_console_mode,
 )
-from execution.runner import Runner, ToolUnavailable, create_session, load_config
+from execution.runner import (
+    Runner,
+    ToolUnavailable,
+    create_session,
+    format_command,
+    load_config,
+    parse_command,
+)
 from console.ui import (
     banner,
     error,
@@ -122,28 +128,40 @@ def execute_one(
     target: TargetInput | None,
     mode_id: str | None,
     headers: tuple[str, ...] = (),
+    edit_command: bool = False,
 ) -> int:
     tool = get_tool(tools, tool_id)
     mode_id = mode_id or tool.default_mode
     selected_mode = get_mode(tool, mode_id)
-    runner.resolve_command(tool_id)
-
     if tool.launch_only:
+        arguments = list(selected_mode.arguments)
+        command = runner.build_command(tool_id, arguments, launch=True)
+        if edit_command:
+            command, _ = edit_tool_command(command)
         return runner.launch(
             tool_id,
-            list(selected_mode.arguments),
+            arguments,
             run_as_admin=tool.run_as_admin,
+            command=command,
         )
-    if selected_mode.requires_target and target is None:
-        raise ValueError("URL 为必填项，请执行 show")
+    if selected_mode.requires_url and target is None:
+        raise ValueError("URL 为必填项，请直接输入 URL 后再执行 run")
 
     session_label = (
         target.session_label if target is not None else f"{tool_id}_{mode_id}"
     )
     session = create_session(runner.output_root, session_label)
     arguments = build_arguments(tool, mode_id, target, session.directory, headers)
+    sensitive_values = tool.sensitive_header_values(headers)
+    command = runner.build_command(tool_id, arguments)
+    if edit_command:
+        command, sensitive_values = edit_tool_command(command, sensitive_values)
     result = runner.run(
-        tool_id, arguments, session, tool.sensitive_header_values(headers)
+        tool_id,
+        arguments,
+        session,
+        sensitive_values,
+        command=command,
     )
     print(success(f"输出目录：{session.directory}"))
     return result.return_code
@@ -239,46 +257,6 @@ def show_modes(
     )
 
 
-def show_options(
-    module: ModuleEntry,
-    target: TargetInput | None,
-    mode: str,
-    tools: dict[str, Tool],
-    workflows: dict[str, Workflow],
-    headers: tuple[str, ...] = (),
-) -> None:
-    if module.kind == "tool" and get_tool(tools, module.item_id).launch_only:
-        show_table(
-            f"Options ({module.name})",
-            ("Name", "Current Setting", "Required", "Description"),
-            [
-                ("ACTION", "启动图形界面", "Yes", "启动后返回工具列表"),
-                ("MODE", mode, "Yes", "config.json 命令预设"),
-            ],
-        )
-        return
-    selected_tool = (
-        get_tool(tools, module.item_id) if module.kind == "tool" else None
-    )
-    selected_mode = get_mode(selected_tool, mode) if selected_tool else None
-    requires_target = selected_mode.requires_target if selected_mode else True
-    target_value = target.display_value if target else "<未设置>"
-    target_type = "TXT URL 列表" if target and target.is_list else "单个 URL"
-    if target is None:
-        target_type = "单 URL 或 TXT" if requires_target else "当前模式不需要目标"
-    header_value = f"{len(headers)} configured" if headers else "<未设置>"
-    header_description = module_header_description(module, tools, workflows)
-    show_table(
-        f"Options ({module.name})",
-        ("Name", "Current Setting", "Required", "Description"),
-        [
-            ("URL", target_value, "Yes" if requires_target else "No", target_type),
-            ("MODE", mode, "Yes", "config.json 命令预设"),
-            ("HEADERS", header_value, "No", header_description),
-        ],
-    )
-
-
 def show_help() -> None:
     headers = ("Command", "Description")
     core_commands: list[tuple[object, ...]] = [
@@ -291,7 +269,6 @@ def show_help() -> None:
         ("q / exit / quit", "退出 Makit"),
     ]
     module_commands: list[tuple[object, ...]] = [
-        ("show", "显示当前 URL、MODE 和 HEADERS"),
         ("show modes", "显示当前模块的测试方式"),
         ("<域名或URL>", "直接设置目标，裸域名自动补全协议"),
         ("set url <URL或TXT>", "设置 URL 或 UTF-8 TXT 目标列表"),
@@ -299,7 +276,7 @@ def show_help() -> None:
         ("set header \"Name: Value\"", "添加或替换 HTTP 请求头"),
         ("set cookie \"a=b\"", "设置 Cookie 请求头"),
         ("unset header <名称/all>", "删除一个或全部请求头"),
-        ("run", "执行当前模块；Ctrl+C 强制结束工具及其子进程"),
+        ("run", "显示并编辑完整命令，按回车后执行"),
     ]
     shared_widths = table_widths(headers, core_commands + module_commands)
     show_table(
@@ -327,6 +304,51 @@ def parse_console_line(line: str) -> list[str]:
         else part
         for part in parts
     ]
+
+
+def edit_tool_command(
+    command: list[str], sensitive_values: tuple[str, ...] = ()
+) -> tuple[list[str], tuple[str, ...]]:
+    """显示可编辑命令，并在解析后恢复被隐藏的请求头值。"""
+    display_parts = command.copy()
+    secret_tokens: dict[str, str] = {}
+    for secret_index, sensitive_value in enumerate(
+        dict.fromkeys(sensitive_values), start=1
+    ):
+        if not sensitive_value:
+            continue
+        token = f"<redacted:{secret_index}>"
+        name, separator, raw_value = sensitive_value.partition(":")
+        if separator:
+            replacement = f"{name}: {token}"
+            restored_value = raw_value.strip()
+        else:
+            replacement = token
+            restored_value = sensitive_value
+        changed = False
+        for index, argument in enumerate(display_parts):
+            if sensitive_value in argument:
+                display_parts[index] = argument.replace(sensitive_value, replacement)
+                changed = True
+        if changed:
+            secret_tokens[token] = restored_value
+
+    initial_value = format_command(display_parts)
+    print(info("当前工具调用命令如下；可直接修改或追加参数，按回车后执行。"))
+    edited_line = read_console_input("command > ", initial_value=initial_value)
+    edited_command = parse_command(edited_line)
+    edited_sensitive_values: list[str] = []
+    for index, argument in enumerate(edited_command):
+        restored = argument
+        contains_secret = False
+        for token, value in secret_tokens.items():
+            if token in restored:
+                contains_secret = True
+            restored = restored.replace(token, value)
+        edited_command[index] = restored
+        if contains_secret:
+            edited_sensitive_values.append(restored)
+    return edited_command, tuple(edited_sensitive_values)
 
 
 def show_target_value(target: TargetInput) -> None:
@@ -464,9 +486,7 @@ def interactive_console(
                 continue
             if command == "show":
                 subject = arguments[0].lower() if len(arguments) == 1 else ""
-                if not arguments and selected and mode:
-                    show_options(selected, target, mode, tools, workflows, headers)
-                elif subject in {"tools", "modules"}:
+                if subject in {"tools", "modules"}:
                     if active_console_mode is None:
                         show_console_modes(console_modes)
                     else:
@@ -477,17 +497,13 @@ def interactive_console(
                             available_modules,
                             f"{active_console_mode.name} Modules",
                         )
-                elif subject in {"option", "options"} and selected and mode:
-                    show_options(selected, target, mode, tools, workflows, headers)
                 elif subject == "modes":
                     if selected:
                         show_modes(selected, tools, workflows)
                     else:
                         show_console_modes(console_modes)
                 else:
-                    raise ValueError(
-                        "用法：show tools/modes；选择工具后直接使用 show"
-                    )
+                    raise ValueError("用法：show tools 或 show modes")
                 continue
             if command == "set":
                 if selected is None:
@@ -538,7 +554,13 @@ def interactive_console(
                 if selected.kind == "tool":
                     selected_tool = get_tool(tools, selected.item_id)
                     execute_one(
-                        runner, tools, selected.item_id, target, mode, headers
+                        runner,
+                        tools,
+                        selected.item_id,
+                        target,
+                        mode,
+                        headers,
+                        edit_command=True,
                     )
                     if selected_tool.launch_only:
                         selected, target, mode = None, None, None
@@ -553,7 +575,7 @@ def interactive_console(
                         )
                 else:
                     if target is None or mode is None:
-                        raise ValueError("URL 为必填项，请执行 show")
+                        raise ValueError("URL 为必填项，请直接输入 URL")
                     execute_workflow(
                         runner,
                         tools,

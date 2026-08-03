@@ -46,13 +46,16 @@ def show_table(
     text_rows = [tuple(str(value) for value in row) for row in rows]
     widths = widths or table_widths(headers, rows)
     indent = "    "
-    render_title = (
-        module_section_title
-        if title == "Operation Modes" or title == "Modules" or title.endswith(" Modules")
-        else title_style
+    is_module_list = (
+        title == "Operation Modes"
+        or title == "Modules"
+        or title.endswith(" Modules")
     )
+    is_mode_list = title.startswith("Modes (") and title.endswith(")")
+    render_title = module_section_title if is_module_list else title_style
     print(render_title(title))
-    print(render_title("=" * display_width(title)))
+    if not (is_module_list or is_mode_list):
+        print(render_title("=" * display_width(title)))
     print(
         heading(
             indent
